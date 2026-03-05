@@ -1,0 +1,68 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  release:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 9
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '9.0.x'
+
+      - name: Get version from tag
+        id: version
+        shell: bash
+        run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> "$GITHUB_OUTPUT"
+
+      - name: Publish DcsDedGui (GUI tray app)
+        run: >
+          dotnet publish DcsDedGui/DcsDedGui.csproj
+          -c Release
+          -r win-x64
+          --self-contained true
+          -p:PublishSingleFile=true
+          -p:PublishReadyToRun=true
+          -p:IncludeNativeLibrariesForSelfExtract=true
+          -p:Version=${{ steps.version.outputs.VERSION }}
+          -o publish/gui
+
+      - name: Publish DcsDedBridge (headless bridge)
+        run: >
+          dotnet publish DcsDedBridge/DcsDedBridge.csproj
+          -c Release
+          -r win-x64
+          --self-contained true
+          -p:PublishSingleFile=true
+          -p:PublishReadyToRun=true
+          -p:Version=${{ steps.version.outputs.VERSION }}
+          -o publish/bridge
+
+      - name: Zip GUI release
+        shell: pwsh
+        run: |
+          Compress-Archive -Path publish/gui/DcsDedGui.exe `
+            -DestinationPath "DedCustomizer-${{ steps.version.outputs.VERSION }}.zip"
+
+      - name: Zip Bridge release
+        shell: pwsh
+        run: |
+          Compress-Archive -Path publish/bridge/DcsDedBridge.exe `
+            -DestinationPath "DedCustomizer-Bridge-${{ steps.version.outputs.VERSION }}.zip"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: "WINCTRL DED Customizer ${{ steps.version.outputs.VERSION }}"
+          generate_release_notes: true
+          files: |
+            DedCustomizer-${{ steps.version.outputs.VERSION }}.zip
+            DedCustomizer-Bridge-${{ steps.version.outputs.VERSION }}.zip
