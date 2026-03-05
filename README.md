@@ -293,6 +293,17 @@ the glyph font.
 
 ---
 
+## Acknowledgements
+
+**[DedSharp](https://github.com/broosa/DedSharp)** by [Byron Roosa](https://github.com/broosa) —
+the USB HID driver and WinWing F-16 DED hardware abstraction that this project builds on.
+`DedSharp` is included here unmodified under its own MIT license (see [DedSharp/LICENSE.txt](DedSharp/LICENSE.txt)).
+
+**[HidSharp](https://www.zer7.com/software/hidsharp)** — cross-platform HID communication
+library used internally by DedSharp.
+
+---
+
 ## License
 
 MIT — see [LICENSE](LICENSE).
