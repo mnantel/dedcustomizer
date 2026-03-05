@@ -1,0 +1,127 @@
+﻿using HidSharp;
+
+namespace DedSharp
+{
+    public class IcpDeviceException : Exception
+    {
+        public IcpDeviceException(string message) : base(message) { }
+    }
+    public class IcpHidDevice
+    {
+
+        private static readonly ushort ICP_USB_VENDOR_ID = 0x4098;
+        private static readonly ushort ICP_USB_PRODUCT_ID = 0xbf06;
+
+        private static readonly int ICP_HID_PAYLOAD_LENGTH = 60;
+
+        private readonly HidDevice Device;
+        private readonly HidStream DeviceStream;
+
+        private readonly DateTime DeviceStartTime;
+
+        private byte PacketSeqNumber = 1;
+
+        public IcpHidDevice()
+        {
+            var devList = DeviceList.Local;
+            HidDevice hidDevice = null;
+            try
+            {
+                hidDevice = devList.GetHidDevices(ICP_USB_VENDOR_ID, ICP_USB_PRODUCT_ID).First();
+
+                if (hidDevice == null)
+                {
+                    throw new IcpDeviceException("ICP USB HID Device not found.");
+                }
+            }
+            catch (InvalidOperationException ex)
+            {
+                throw new IcpDeviceException("ICP USB HID Device not found.");
+            }
+
+            Device = hidDevice;
+
+            var config = new OpenConfiguration();
+            config.SetOption(OpenOption.Exclusive, true);
+            config.SetOption(OpenOption.Interruptible, false);
+            DeviceStream = Device.Open(config);
+
+            var streamOpened = true;
+            if (!streamOpened)
+            {
+                throw new IcpDeviceException("Could not open HID device stream.");
+            }
+
+            WriteIcpPacket(new IcpPacket() { OpType = 0x02, PacketBuffer = new byte[] { 0 } });
+
+            DeviceStartTime = DateTime.Now;
+        }
+
+        private byte[] CommandListAsBytes(List<DedCommand> commands)
+        {
+            List<byte> commandBytes = new List<byte>();
+
+            foreach (var command in commands)
+            {
+                commandBytes.AddRange(command.GetBytes());
+            }
+
+            return commandBytes.ToArray();
+        }
+
+        private void WriteIcpPacket(IcpPacket packet)
+        {
+            DeviceStream.Write(packet.GetBytes());
+        }
+
+        private async Task WriteIcpPacketAsync(IcpPacket packet)
+        {
+            await DeviceStream.WriteAsync(packet.GetBytes()).AsTask();
+        }
+
+        private void WriteCommandBytes(byte[] commandBytes)
+        {
+            for (var packetStartIndex = 0; packetStartIndex < commandBytes.Length; packetStartIndex += ICP_HID_PAYLOAD_LENGTH)
+            {
+                var packetStopIndex = commandBytes.Length - packetStartIndex >= ICP_HID_PAYLOAD_LENGTH ? packetStartIndex + ICP_HID_PAYLOAD_LENGTH : commandBytes.Length;
+
+                var packet = new IcpPacket
+                {
+                    SequenceNum = PacketSeqNumber++,
+                    PacketBuffer = commandBytes[packetStartIndex..packetStopIndex]
+                };
+
+                WriteIcpPacket(packet);
+            }
+        }
+
+        private async Task WriteCommandBytesAsync(byte[] commandBytes)
+        {
+            for (var packetStartIndex = 0; packetStartIndex < commandBytes.Length; packetStartIndex += ICP_HID_PAYLOAD_LENGTH)
+            {
+                var packetStopIndex = commandBytes.Length - packetStartIndex >= ICP_HID_PAYLOAD_LENGTH ? packetStartIndex + ICP_HID_PAYLOAD_LENGTH : commandBytes.Length;
+                var packet = new IcpPacket
+                {
+                    SequenceNum = PacketSeqNumber++,
+                    PacketBuffer = commandBytes[packetStartIndex..packetStopIndex]
+                };
+                await WriteIcpPacketAsync(packet);
+            }
+        }
+
+        public void WriteDedCommands(List<DedCommand> commands)
+        {
+            var commandBytes = CommandListAsBytes(commands);
+
+            WriteCommandBytes(commandBytes);
+        }
+
+        public async Task WriteDedCommandsAsync(List<DedCommand> commands)
+        {
+            var commandBytes = CommandListAsBytes(commands);
+            await WriteCommandBytesAsync(commandBytes);
+        }
+
+        public void Dispose() => DeviceStream.Dispose();
+    }
+}

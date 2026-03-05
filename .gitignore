@@ -1,0 +1,21 @@
+# Build output
+**/bin/
+**/obj/
+
+# Visual Studio
+.vs/
+*.user
+*.suo
+*.userosscache
+*.sln.docview
+
+# NuGet
+*.nupkg
+**/packages/
+
+# OS
+Thumbs.db
+.DS_Store
+
+# User-specific config (not source)
+# (config.json lives in %APPDATA%\DcsDedBridge at runtime, not in the repo)
